@@ -1,9 +1,8 @@
 
 require(neotoma)
 require(dplyr)
-require(tidyr)
 require(analogue)
-require(Bchron)
+# require(Bchron)
 require(raster)
 require(geosphere)
 require(sp)
@@ -14,8 +13,7 @@ require(ggplot2)
 require(gridExtra)
 
 # READ IN JUGLANS SITES AND DATA
-dat.dl <- readRDS("juglans_data_download.RData")
-data <- compile_downloads(dat.dl)
+data <- readRDS("juglans_data.RData")
 
 # remove NA rows
 data <- data[!is.na(rowSums(data[,c('Juglans.nigra','Juglans.cinerea')], na.rm = TRUE)), ]
@@ -42,6 +40,7 @@ dat_jug <- dat.perc %>% dplyr::select(site.name, age, date.type,
 # calibrate age - leave this alone for now
 
 # what proportion of counts contain each juglans species?
+# leave out proportions less than 0.01
 
 
 # for now, take sum of pollen counts per location if there are more than one 
@@ -56,13 +55,18 @@ dat_jug <- ungroup(dat_jug)
 dat_jug <- left_join(dat_jug, coords, by = c("site.name", "age"))
 
 
-
 # MAPS OF JUGLANS LOCATION BY TIME IN 1000-YEAR CHUNKS
-# cut data into time chunks
-dat.cut <- cut(dat_jug$age, breaks = c(min(dat_jug$age, na.rm = TRUE), seq(1000, 21000, by = 1000)),
-               labels = FALSE)
-dat_jug$cut <- dat.cut
-dat_jug <- dat_jug[!is.na(dat_jug$cut),]
+# create underlying map
+proj_out <- "+proj=aea +lat_1=29.5 +lat_2=45.5 +lat_0=37.5
++lon_0=-96 +x_0=0 +y_0=0 +ellps=GRS80 +datum=NAD83 +units=m +no_defs"
+
+proj_WGS84 <- "+proj=longlat +datum=WGS84 +no_defs +ellps=WGS84
++towgs84=0,0,0"
+
+na_shp <- readOGR("shapefiles/NA_States_Provinces_Albers.shp", "NA_States_Provinces_Albers")
+na_shp <- sp::spTransform(na_shp, proj_out)
+cont_shp <- subset(na_shp,
+                   (NAME_0 %in% c("United States of America", "Mexico", "Canada")))
 
 # prepare coordinates
 dat_coords <- dat_jug[, c("long","lat")]
@@ -70,51 +74,24 @@ names(dat_coords) <- c("x", "y")
 coordinates(dat_coords) <- dat_coords
 sp::proj4string(dat_coords) <- proj_WGS84
 dat_coords_t <- sp::spTransform(dat_coords, proj_out)
-coords = coordinates(dat_coords_t)
+coords <- coordinates(dat_coords_t)
 coords <- data.frame(coords)
 dat_jug <- cbind(dat_jug, coords)
 
-dat_jug_sp <- SpatialPointsDataFrame(coords = dat_jug[,c('x','y')],
-                                  data = dat_jug[,c('juglans.nigra','juglans.cinerea','cut')])
-
-# crop out water
-cropped <- raster::intersect(dat_jug_sp, shp)
-cropped <- data.frame(cropped)
-
-# separate dataframe into list of dataframes, one for each time chunk
-time <- split(cropped, f = cropped$cut)
-
-# PLOTTING LOOP OVER TIME INTERVALS (plot site locations of all Juglans spp.)
-nchunks <- nrow(cropped[unique(cropped$cut),])
-plot_list <- list()
-
-for(i in 1:nchunks){
-  plot_list[[i]] <- ggplot(data = time[[i]]) +
-    geom_point(aes(x = x, y = y), size = 4, alpha = 0.5, color = "blue") +
-    geom_path(data = shp, aes(x = long, y = lat, group = group)) +
-    labs(title = paste0("-", i, "000")) +
-    scale_y_continuous(limits = c(100000, 1900000)) +
-    scale_x_continuous(limits = c(-800000, 2760000)) +
-    theme_classic() +
-    theme(axis.ticks = element_blank(),
-          axis.text = element_blank(),
-          axis.title = element_blank(),
-          line = element_blank(),
-          legend.title = element_blank()) +
-    coord_fixed()
-}
-do.call(grid.arrange, plot_list)
-
-
+# cut data into time chunks
+dat.cut <- cut(dat_jug$age, breaks = c(min(dat_jug$age, na.rm = TRUE), seq(1000, 21000, by = 1000)),
+               labels = FALSE)
+dat_jug$cut <- dat.cut
+dat_jug <- dat_jug[!is.na(dat_jug$cut),]
 
 
 # PLOTTING LOOPS OVER TIME INTERVALS FOR TWO SPECIES SEPARATELY, CIRCLES
 # FILLED BY RELATIVE ABUNDANCE
 
 # separate dataframe into list of dataframes, one for each time chunk
-time <- split(cropped, f = cropped$cut)
-nigra_list <- lapply(time, "[", c(1, 3:5))
-cinerea_list <- lapply(time, "[", c(2:5))
+time <- split(dat_jug, f = dat_jug$cut)
+nigra_list <- lapply(time, "[", c(3, 7:9))
+cinerea_list <- lapply(time, "[", c(4, 7:9))
 all_list <- list(nigra_list, cinerea_list)
 
 # remove sites that contain NA or 0 pollen counts for each species/time chunk
@@ -127,13 +104,14 @@ for(j in 1:2){
 }
 
 plot_list <- rep(list(list()), 2)
+
 for(j in 1:length(all_list)){
   for(i in 1:length(all_list[[1]])){
       plot_list[[j]][[i]] <- ggplot(data = all_list[[j]][[i]]) +
         geom_point(aes_string(x = 'x', y = 'y', fill = names(all_list[[j]][[i]][1])), 
                    size = 4, pch = 21, alpha = 0.3) +
         # geom_point(aes(x = x, y = y), size = 4, pch = 21, color = "black") +
-        geom_path(data = shp, aes(x = long, y = lat, group = group)) +
+        geom_path(data = cont_shp, aes(x = long, y = lat, group = group)) +
         labs(subtitle = paste0("-", i, "000")) +
         scale_y_continuous(limits = c(-1600000, 3500000)) +
         scale_x_continuous(limits = c(-800000, 2760000)) +
@@ -153,4 +131,31 @@ for(j in 1:length(all_list)){
 # 1. try using bacon package to convert radiocarbon years to calendar years
 # 2. apply cutoff (5%) to abundance
 # 3. first, need to calculate proportion of grains that are juglans
+
+
+
+
+## OLD CODE
+# PLOTTING LOOP OVER TIME INTERVALS (plot site locations of ALL JUGLANS SPP.)
+# separate dataframe into list of dataframes, one for each time chunk
+time <- split(dat_jug, f = dat_jug$cut)
+nchunks <- nrow(dat_jug[unique(dat_jug$cut),])
+plot_list <- list()
+
+for(i in 1:nchunks){
+  plot_list[[i]] <- ggplot(data = time[[i]]) +
+    geom_point(aes(x = x, y = y), size = 4, alpha = 0.5, color = "blue") +
+    geom_path(data = cont_shp, aes(x = long, y = lat, group = group)) +
+    labs(title = paste0("-", i, "000")) +
+    scale_y_continuous(limits = c(100000, 1900000)) +
+    scale_x_continuous(limits = c(-800000, 2760000)) +
+    theme_classic() +
+    theme(axis.ticks = element_blank(),
+          axis.text = element_blank(),
+          axis.title = element_blank(),
+          line = element_blank(),
+          legend.title = element_blank()) +
+    coord_fixed()
+}
+do.call(grid.arrange, plot_list)
 
