@@ -1,4 +1,6 @@
 
+setwd('C:/Users/abrow/Documents/juglans')
+
 require(neotoma)
 require(dplyr)
 require(analogue)

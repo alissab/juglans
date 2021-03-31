@@ -1,11 +1,12 @@
 
+setwd('C:/Users/abrow/Documents/juglans')
+
 require(rgdal)
 require(raster)
 require(dplyr)
 require(rgeos)
 require(ggplot2)
 require(gridExtra)
-
 # require(geosphere)
 # require(sp)
 
@@ -121,9 +122,10 @@ plot_list <- list(list())
 
 
 # READ IN GLACIER SHAPEFILES AND ADD THEM TO PLOTS BY TIME CHUNK
-for(i in 1:21){
+for(i in 1:18){
 ice <- readOGR("ice/1ka_0.91cal_Dalton_et_al_2020_QSR.shp", 
                   "1ka_0.91cal_Dalton_et_al_2020_QSR")
-ice <- sp::spTransform(shp_1k, proj_out)
+ice <- sp::spTransform(ice, proj_out)
 }
 
+ 
