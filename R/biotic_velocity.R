@@ -449,6 +449,7 @@ ggplot() +
 
 
 #### PLOT HABITAT SUITABILITY WITH GLACIAL COVERAGE; AND MAKE IT PURTY
+#### THERE IS SOME REDUNDANCY IN PLOTTING CODE THAT YOU'LL NEED TO REMOVE EVENTUALLY #######
 require(rgdal)
 require(raster)
 require(dplyr)
@@ -555,37 +556,6 @@ for(i in 1:n_times){
   
 }
 
-# PLOT PRESENT DAY
-present <- raster('shapefiles/HSM_rasters_dif_timepoints/present_hsm.tif')
-df <- as.data.frame(present, xy = TRUE)
-names(df) <- c('x','y','hsm')
-
-plot_present <- ggplot() +
-  geom_tile(data = df[!is.na(df$hsm),], aes(x = x, y = y, fill = hsm)) +
-  scale_fill_gradientn(colours = terrain.colors(10, rev = TRUE)) +
-  geom_path(data = lake_shp, aes(x = long, y = lat, group = group),
-            size = 0.5, alpha = 0.4) +
-  geom_path(data = cont_shp, aes(x = long, y = lat, group = group), 
-            size = 0.5, alpha = 0.4) +
-  # geom_path(data = shore_cont, aes(x = long, y = lat, group = group), 
-  #           size = 0.5, alpha = 0.4) +
-  ggtitle('Present') +
-  # labs(fill = 'Habitat \nsuitability') +
-  annotation_scale(location = "br", text_cex = 1) +
-  annotation_north_arrow(location = "br",
-    pad_x = unit(0.4, "in"), pad_y = unit(0.4, "in")) +
-  theme(panel.background = element_blank(),
-        axis.ticks = element_blank(),
-        axis.text = element_blank(),
-        axis.title = element_blank(),
-        line = element_blank(),
-        legend.position = 'none',
-        # legend.title = element_text(size = 8),
-        # legend.text = element_text(size = 8),
-        # legend.key.height = unit(1, 'cm'),
-        plot.title = element_text(size = 12, hjust = 0.5)) +
-  coord_fixed(xlim = c(100000, 2900000),
-              ylim = c(-1000000, 1300000))
 
 
 # PLOT LIG (130K YBP)
@@ -846,3 +816,92 @@ plot_present <- ggplot() +
 plot_list[[7]] <- plot_present
 plot_grid(plotlist = plot_list)
 ggsave('figs/hsm_shore_ice_maps_17k-present.png')
+
+
+
+
+
+#### PLOT OF GENETIC SAMPLE LOCATIONS WITH INSET
+dat <- read.csv('reorg_lon_lat_df.csv', stringsAsFactors = FALSE)
+names(dat) <- c('id', 'pop', 'x', 'y')
+
+pops <- read.csv('butternut_coord_df.csv', stringsAsFactors = FALSE)
+names(pops) <- c('id', 'x', 'y', 'color')
+
+proj_from <- "+proj=longlat +ellps=WGS84 +datum=WGS84"
+proj_to <- "+proj=aea +lat_0=40 +lon_0=-96 +lat_1=20 +lat_2=60 +x_0=0 +y_0=0 +datum=NAD83 +units=m +no_defs"
+
+# project coordinates
+xy <- dat[,c('x','y')]
+spdf <- SpatialPointsDataFrame(coords = xy, data = dat,
+            proj4string = CRS(proj_from))
+spdf <- spTransform(spdf, CRSobj = CRS(proj_to))
+dat <- as.data.frame(spdf)
+
+xy <- pops[,c('x','y')]
+spdf <- SpatialPointsDataFrame(coords = xy, data = pops,
+                               proj4string = CRS(proj_from))
+spdf <- spTransform(spdf, CRSobj = CRS(proj_to))
+pops <- as.data.frame(spdf)
+
+# add population colors to individuals dataframe
+colors <- pops$color
+pop_vec <- dat %>% select(pop) %>% distinct()
+pop_vec$color <- colors
+dat <- left_join(dat, pop_vec, by = 'pop')
+
+
+# read in North America shapefiles
+na_shp <- readOGR("shapefiles/NA_States_Provinces_Albers.shp", "NA_States_Provinces_Albers")
+na_shp <- sp::spTransform(na_shp, proj_out)
+cont_shp <- subset(na_shp,
+                   (NAME_0 %in% c("United States of America", "Mexico", "Canada")))
+lake_shp <- readOGR("shapefiles/Great_Lakes.shp", "Great_Lakes")
+lake_shp <- sp::spTransform(lake_shp, proj_out)
+
+
+ggplot() + 
+  geom_path(data = cont_shp, aes(x = long, y = lat, group = group), 
+            size = 0.5) +
+  geom_polygon(data = lake_shp, aes(x = long, y = lat, group = group),
+               size = 0.5, color = 'black', fill = 'white') +
+  geom_point(data = dat, aes(x = x.1, y = y.1, fill = color),
+             size = 6, pch = 21, alpha = 0.6) +
+  scale_fill_discrete(name = 'Population ID', 
+                      labels = pop_vec$pop) +
+  annotation_scale(location = "br", text_cex = 1.5) +
+  annotation_north_arrow(location = "br",
+                         pad_x = unit(0.8, "in"), pad_y = unit(0.4, "in")) +
+  guides(fill = guide_legend(override.aes = list(alpha = 1))) +
+  theme(panel.background = element_blank(),
+        axis.ticks = element_blank(),
+        axis.text = element_blank(),
+        axis.title = element_blank(),
+        line = element_blank(),
+        # legend.position = 'none') +
+        legend.title = element_text(size = 16),
+        legend.text = element_text(size = 16),
+        legend.key = element_rect(fill = "white")) +
+        # legend.key.height = unit(1, 'cm'),
+        # plot.title = element_text(size = 12, hjust = 0.5)) +
+  coord_fixed(xlim = c(300000, 2500000),
+              ylim = c(-700000, 1300000))
+ggsave('figs/genetic_pops_map.png')
+
+
+#### NORTH AMERICA INSET
+ggplot() + 
+  geom_path(data = cont_shp, aes(x = long, y = lat, group = group), 
+            size = 0.5) +
+  geom_polygon(data = lake_shp, aes(x = long, y = lat, group = group),
+               size = 0.5, color = 'black', fill = 'white') +
+  annotation_scale(location = "bl", text_cex = 2) +
+  annotation_north_arrow(location = "bl",
+                         pad_x = unit(0.8, "in"), pad_y = unit(0.4, "in")) +
+  theme(panel.background = element_blank(),
+        axis.ticks = element_blank(),
+        axis.text = element_blank(),
+        axis.title = element_blank(),
+        line = element_blank(),
+        legend.position = 'none')
+ggsave('figs/NA_inset_map.png')
