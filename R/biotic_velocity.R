@@ -7,6 +7,8 @@ require(rgeos)
 require(geosphere)
 require(ggplot2)
 require(gridExtra)
+require(ggspatial)
+require(cowplot)
 
 # READ IN POLLEN DATA
 pollen <- readRDS("butternut_pollen_fixed_dates.RDS")
@@ -267,36 +269,6 @@ ggplot(data = hsm_pollen, aes(x = time, y = bv, color = type)) +
 
 
 
-# FIND AVERAGE POLLEN CORE LATITUDE FOR EACH TIME CHUNK
-# avg_lat <- as.vector(rep(NA, nchunks))
-# for(i in 1:nchunks){
-#   hi.age <- i*1000 + 500
-#   low.age <- i*1000 - 500
-#   pol <- pollen %>% filter(age <= hi.age, age >= low.age)  # select pollen data within time chunk
-#   pol <- pol[!duplicated(pol[,c('x','y')]), c('x','y')]
-#   avg_lat[i] <- mean(pol$y)  # calculate average latitude
-#   cat(paste0("iteration ", i, "\n"))
-# }
-
-# CALCULATE APPROXIMATE BIOTIC VELOCITY USING LATITUDE
-# lat <- data.frame(avg_lat, ybp = seq(1000, 21000, by = 1000))
-# lat$bv <- NA
-# for(i in 1:nrow(lat)){
-#   if(i<21){
-#     lat$bv[i] <- ( lat[i+1, 1] - lat[i, 1] ) / 1000}
-#   else{
-#     lat$bv[i] <- NA
-#   }
-# }
-# 
-# png('figs/lat_biot_vel.png', width = 12, height = 10, units = 'cm', res = 300)
-# par(mar = c(5,5,2,2))
-# plot(lat$ybp, lat$bv, type = 'l',
-#      xlab = 'Years before present', ylab = 'Latitudinal biotic velocity (m/yr)')
-# abline(h = mean(lat$bv, na.rm = TRUE), lty = 'dotted')
-# dev.off()
-
-
 
 # PROJECT COORDINATES AND PLOT POLLEN OCC WITH GLACIERS
 # projection you want to use
@@ -397,59 +369,7 @@ saveRDS(layout, 'plot_layout_for_publication.RDS')
 
 
 
-#### PLOT HABITAT SUITABILITY WITH GLACIERS ####
-
-# LGM
-lgm_df <- as.data.frame(lgm, xy = TRUE)
-ggplot() +
-  geom_tile(data = lgm_df[!is.na(lgm_df$lgm_hsm),], aes(x = x, y = y, fill = lgm_hsm)) +
-  scale_fill_gradientn(colours = terrain.colors(10, rev = TRUE)) +
-  geom_path(data = cont_shp, aes(x = long, y = lat, group = group)) +
-  geom_polygon(data = glacier_list_pr[[21]], aes(x = long, y = lat, group = group),
-               size = 0.5, fill = 'blue', alpha = 0.3, color = 'blue') +
-  ggtitle("21,000 ybp") +
-  labs(fill = 'Habitat \nsuitability') +
-  theme(axis.ticks = element_blank(),
-        axis.text = element_blank(),
-        axis.title = element_blank(),
-        line = element_blank(),
-        legend.title = element_text(size = 14),
-        legend.text = element_text(size = 14),
-        plot.title = element_text(size = 14, hjust = 0.5)) +
-  coord_fixed(xlim = c(100000, 2700000),
-              ylim = c(-1000000, 1400000))
-
-
-# YOUNGER DRYAS
-yds_df <- as.data.frame(yds, xy = TRUE)
-ggplot() +
-  geom_tile(data = yds_df[!is.na(yds_df$yds_hsm),], aes(x = x, y = y, fill = yds_hsm)) +
-  scale_fill_gradientn(colours = terrain.colors(10, rev = TRUE)) +
-  geom_path(data = cont_shp, aes(x = long, y = lat, group = group)) +
-  
-  geom_polygon(data = glacier_list_pr[[13]], aes(x = long, y = lat, group = group),
-               size = 0.5, fill = 'blue', alpha = 0.3, color = 'blue') +
-  
-  geom_polygon(data = glacier_list_pr[[12]], aes(x = long, y = lat, group = group),
-               size = 0.5, fill = 'deeppink', alpha = 0.3, color = 'deeppink') +
-  
-  ggtitle("12,900 - 11,700 ybp") +
-  labs(fill = 'Habitat \nsuitability') +
-  theme(axis.ticks = element_blank(),
-        axis.text = element_blank(),
-        axis.title = element_blank(),
-        line = element_blank(),
-        legend.title = element_text(size = 14),
-        legend.text = element_text(size = 14),
-        plot.title = element_text(size = 14, hjust = 0.5)) +
-  coord_fixed(xlim = c(100000, 2700000),
-              ylim = c(-1000000, 1400000))
-
-
-
-
-#### PLOT HABITAT SUITABILITY WITH GLACIAL COVERAGE; AND MAKE IT PURTY
-#### THERE IS SOME REDUNDANCY IN PLOTTING CODE THAT YOU'LL NEED TO REMOVE EVENTUALLY #######
+#### PLOT HABITAT SUITABILITY WITH GLACIAL COVERAGE
 require(rgdal)
 require(raster)
 require(dplyr)
@@ -457,30 +377,24 @@ require(ggplot2)
 require(cowplot)
 require(ggspatial)
 
+#### START WITH MAPS THAT INCLUDE SHORELINES AND GLACIER COVERAGE (MAKE LOOP)
+#### THEN MAKE LIG, PRESENT DAY, AND ZOOMED IN LGM
+
+# LGM THROUGH LATE HOLOCENE MAPS
 # read in habitat suitability rasters
 lgm <- raster('shapefiles/HSM_rasters_dif_timepoints/lgm_hsm.tif')
 hs <- raster('shapefiles/HSM_rasters_dif_timepoints/hs_hsm.tif')
 ba <- raster('shapefiles/HSM_rasters_dif_timepoints/ba_hsm.tif')
 yds <- raster('shapefiles/HSM_rasters_dif_timepoints/yds_hsm.tif')
 e_hol <- raster('shapefiles/HSM_rasters_dif_timepoints/eh_hsm.tif')
-mid_hol <- raster('shapefiles/HSM_rasters_dif_timepoints/mid_hol_hsm.tif')
+mid_hol <- raster('shapefiles/HSM_rasters_dif_timepoints/mh_hsm.tif')
 late_hol <- raster('shapefiles/HSM_rasters_dif_timepoints/lh_hsm.tif')
 hs_list <- list(lgm, hs, ba, yds, e_hol, mid_hol, late_hol)
-
-# projection you want to use
-proj_out <- proj4string(lgm)
-
-# read in North America shapefile
-na_shp <- readOGR("shapefiles/NA_States_Provinces_Albers.shp", "NA_States_Provinces_Albers")
-na_shp <- sp::spTransform(na_shp, proj_out)
-cont_shp <- subset(na_shp,
-                   (NAME_0 %in% c("United States of America", "Mexico", "Canada")))
-lake_shp <- readOGR("shapefiles/Great_Lakes.shp", "Great_Lakes")
-lake_shp <- sp::spTransform(lake_shp, proj_out)
 
 # project glacier polygons
 glacier_list <- readRDS('glacier_shapefiles_21-1k.RDS')
 nchunks <- length(glacier_list)
+proj_out <- proj4string(lgm)
 
 glacier_list_pr <- list()
 for(i in 1:nchunks){
@@ -488,6 +402,13 @@ for(i in 1:nchunks){
 }
 glacier_list <- glacier_list_pr[c(21, 16, 13, 12, 10, 6, 2)]
 
+# read in North America shapefiles
+na_shp <- readOGR("shapefiles/NA_States_Provinces_Albers.shp", "NA_States_Provinces_Albers")
+na_shp <- sp::spTransform(na_shp, proj_out)
+cont_shp <- subset(na_shp,
+                   (NAME_0 %in% c("United States of America", "Mexico", "Canada")))
+lake_shp <- readOGR("shapefiles/Great_Lakes.shp", "Great_Lakes")
+lake_shp <- sp::spTransform(lake_shp, proj_out)
 
 # read shoreline shapefiles
 sh_lgm <- raster('shapefiles/shorelines/bio_2_lgm.tif')
@@ -510,228 +431,6 @@ times <- c('21,000 YBP', '17,000 - 14,700 YBP',
            '14,700 - 12,900 YBP', '12,900 - 11,700 YBP', '11,700 - 8,326 YBP', 
            '8,326 - 4,200 YBP', '4,200 - 300 YBP')
 
-
-plot_list <- list()
-for(i in 1:n_times){
-  df <- as.data.frame(hs_list[[i]], xy = TRUE)
-  names(df) <- c('x','y','hsm')
-  
-  shore <- shore_list[[i]]
-  shore_pr <- projectRaster(from = shore, crs = CRS(proj_out))  # this takes a minute
-  shore_crop <- crop(shore_pr, y = plot_ext)
-  shore_df <- as.data.frame(shore_crop, xy = TRUE)
-  shore_pol <- shore_df
-  names(shore_pol) <- c('x','y','shore')
-  shore_pol$shore <- ifelse(!is.na(shore_pol$shore), 1, 0)
-  coordinates(shore_pol) <- ~x + y
-  gridded(shore_pol) <- TRUE
-  shore_pol <- raster(shore_pol)
-  shore_cont <- rasterToContour(shore_pol)
-  
-  plot_list[[i]] <- ggplot() +
-    geom_tile(data = df[!is.na(df$hsm),], aes(x = x, y = y, fill = hsm)) +
-    scale_fill_gradientn(colours = terrain.colors(10, rev = TRUE)) +
-    geom_path(data = lake_shp, aes(x = long, y = lat, group = group),
-              size = 0.5, alpha = 0.4) +
-    geom_polygon(data = glacier_list[[i]], aes(x = long, y = lat, group = group),
-                 size = 0.5, fill = 'slategray1', color = 'slategray') +
-    geom_path(data = cont_shp, aes(x = long, y = lat, group = group), 
-              size = 0.5, alpha = 0.4) +
-    geom_path(data = shore_cont, aes(x = long, y = lat, group = group), 
-              size = 0.5, alpha = 0.4) +
-    ggtitle(times[i]) +
-    # labs(fill = 'Habitat \nsuitability') +
-    theme(panel.background = element_blank(),
-          axis.ticks = element_blank(),
-          axis.text = element_blank(),
-          axis.title = element_blank(),
-          line = element_blank(),
-          legend.position = 'none',
-          # legend.title = element_text(size = 8),
-          # legend.text = element_text(size = 8),
-          # legend.key.height = unit(1, 'cm'),
-          plot.title = element_text(size = 12, hjust = 0.5)) +
-    coord_fixed(xlim = c(100000, 2900000),
-                ylim = c(-1000000, 1300000))
-  
-}
-
-
-
-# PLOT LIG (130K YBP)
-lig <- raster('shapefiles/HSM_rasters_dif_timepoints/lig_hsm.tif')
-df <- as.data.frame(lig, xy = TRUE)
-names(df) <- c('x','y','hsm')
-
-sh_lig <- raster('shapefiles/shorelines/bio_2_lig.tif')
-shore_pr <- projectRaster(from = sh_lig, crs = CRS(proj_out))  # this takes a minute
-shore_crop <- crop(shore_pr, y = plot_ext)
-shore_df <- as.data.frame(shore_crop, xy = TRUE)
-shore_pol <- shore_df
-names(shore_pol) <- c('x','y','shore')
-shore_pol$shore <- ifelse(!is.na(shore_pol$shore), 1, 0)
-coordinates(shore_pol) <- ~x + y
-gridded(shore_pol) <- TRUE
-shore_pol <- raster(shore_pol)
-shore_cont <- rasterToContour(shore_pol)
-
-plot_lig <- ggplot() +
-  geom_tile(data = df[!is.na(df$hsm),], aes(x = x, y = y, fill = hsm)) +
-  scale_fill_gradientn(colours = terrain.colors(10, rev = TRUE)) +
-  # geom_path(data = lake_shp, aes(x = long, y = lat, group = group),
-  #           size = 0.5, alpha = 0.4) +
-  geom_path(data = cont_shp, aes(x = long, y = lat, group = group), 
-            size = 0.5, alpha = 0.4) +
-  geom_path(data = shore_cont, aes(x = long, y = lat, group = group),
-            size = 0.5, alpha = 0.4) +
-  ggtitle('130,000 YBP') +
-  # labs(fill = 'Habitat \nsuitability') +
-  theme(panel.background = element_blank(),
-        axis.ticks = element_blank(),
-        axis.text = element_blank(),
-        axis.title = element_blank(),
-        line = element_blank(),
-        legend.position = 'none',
-        # legend.title = element_text(size = 8),
-        # legend.text = element_text(size = 8),
-        # legend.key.height = unit(1, 'cm'),
-        plot.title = element_text(size = 12, hjust = 0.5)) +
-  coord_fixed(xlim = c(100000, 2900000),
-              ylim = c(-1000000, 1300000))
-
-plot_list[[8]] <- plot_present
-plot_list[[9]] <- plot_lig
-plot_list <- plot_list[c(9, 1:8)]
-plot_grid(plotlist = plot_list)
-
-saveRDS(plot_list, 'hsm_shore_ice_figs_list.RDS')
-ggsave('figs/hsm_shore_ice_maps.png')
-
-
-
-
-#### PLOT ZOOM IN ON NOVA SCOTIA AT LGM
-# projection you want to use
-proj_out <- proj4string(lgm)
-
-# read shapefiles
-na_shp <- readOGR("shapefiles/NA_States_Provinces_Albers.shp", "NA_States_Provinces_Albers")
-na_shp <- sp::spTransform(na_shp, proj_out)
-cont_shp <- subset(na_shp, (NAME_0 %in% c("United States of America", "Mexico", "Canada")))
-lake_shp <- readOGR("shapefiles/Great_Lakes.shp", "Great_Lakes")
-lake_shp <- sp::spTransform(lake_shp, proj_out)
-
-# read and project glacier polygons
-glacier_list <- readRDS('glacier_shapefiles_21-1k.RDS')
-nchunks <- length(glacier_list)
-
-glacier_list_pr <- list()
-for(i in 1:nchunks){
-  glacier_list_pr[[i]] <- sp::spTransform(glacier_list[[i]], proj_out)
-}
-glacier_lgm <- glacier_list_pr[[21]]
-
-
-# specify extent you want to plot
-plot_ext <- c(0, 3200000, -1200000, 1600000)
-plot_ext <- extent(plot_ext)
-
-# read suitability raster and convert to dataframe
-lgm <- raster('shapefiles/HSM_rasters_dif_timepoints/lgm_hsm.tif')
-df <- as.data.frame(lgm, xy = TRUE)
-names(df) <- c('x','y','hsm')
-
-# read shoreline shapefiles and convert to contour line
-sh_lgm <- raster('shapefiles/shorelines/bio_2_lgm.tif')
-shore_pr <- projectRaster(from = sh_lgm, crs = CRS(proj_out))  # this takes a minute
-shore_crop <- crop(shore_pr, y = plot_ext)
-shore_df <- as.data.frame(shore_crop, xy = TRUE)
-shore_pol <- shore_df
-names(shore_pol) <- c('x','y','shore')
-shore_pol$shore <- ifelse(!is.na(shore_pol$shore), 1, 0)
-coordinates(shore_pol) <- ~x + y
-gridded(shore_pol) <- TRUE
-shore_pol <- raster(shore_pol)
-shore_cont <- rasterToContour(shore_pol)
-
-# simplify contour 
-shore_cont2 <- fortify(shore_cont)
-shore_cont2 <- shore_cont2[1:726,]
-
-ggplot() +
-  geom_tile(data = df[!is.na(df$hsm),], aes(x = x, y = y, fill = hsm)) +
-  scale_fill_gradientn(colours = terrain.colors(10, rev = TRUE)) +
-  # geom_path(data = lake_shp, aes(x = long, y = lat, group = group),
-  #           size = 0.5, alpha = 0.4) +
-  geom_polygon(data = glacier_lgm, aes(x = long, y = lat, group = group),
-               size = 1.5, fill = 'slategray1', color = 'slategray') +
-  
-  geom_path(data = cont_shp, aes(x = long, y = lat, group = group), 
-            size = 1.5, alpha = 0.4) +
-  geom_path(data = shore_cont2, aes(x = long, y = lat, group = group),
-            size = 2) +
-  # ggtitle('130,000 YBP') +
-  # labs(fill = 'Habitat \nsuitability') +
-  theme(panel.background = element_blank(),
-        axis.ticks = element_blank(),
-        axis.text = element_blank(),
-        axis.title = element_blank(),
-        line = element_blank(),
-        legend.position = 'none') +
-        # legend.title = element_text(size = 8),
-        # legend.text = element_text(size = 8),
-        # legend.key.height = unit(1, 'cm'),
-        # plot.title = element_text(size = 12, hjust = 0.5)) +
-  coord_fixed(xlim = c(1900000, 2900000),
-              ylim = c(450000, 1300000))
-ggsave('figs/hsm_shore_ice_maps_LGM_zoom2.png')
-  
-
-
-
-
-
-#### PLOT 17K YBP TO PRESENT AS ONE FIGURE
-# read in habitat suitability rasters
-hs <- raster('shapefiles/HSM_rasters_dif_timepoints/hs_hsm.tif')
-ba <- raster('shapefiles/HSM_rasters_dif_timepoints/ba_hsm.tif')
-yds <- raster('shapefiles/HSM_rasters_dif_timepoints/yds_hsm.tif')
-e_hol <- raster('shapefiles/HSM_rasters_dif_timepoints/eh_hsm.tif')
-mid_hol <- raster('shapefiles/HSM_rasters_dif_timepoints/mid_hol_hsm.tif')
-late_hol <- raster('shapefiles/HSM_rasters_dif_timepoints/lh_hsm.tif')
-hs_list <- list(hs, ba, yds, e_hol, mid_hol, late_hol)
-
-# project glacier polygons
-glacier_list <- readRDS('glacier_shapefiles_21-1k.RDS')
-nchunks <- length(glacier_list)
-
-glacier_list_pr <- list()
-for(i in 1:nchunks){
-  glacier_list_pr[[i]] <- sp::spTransform(glacier_list[[i]], proj_out)
-}
-glacier_list <- glacier_list_pr[c(16, 13, 12, 10, 6, 2)]
-
-
-# read shoreline shapefiles
-sh_hs <- raster('shapefiles/shorelines/bio_2_hs.tif')
-sh_ba <- raster('shapefiles/shorelines/bio_2_ba.tif')
-sh_yds <- raster('shapefiles/shorelines/bio_2_yds.tif')
-sh_eh <- raster('shapefiles/shorelines/bio_2_eh.tif')
-sh_mh <- raster('shapefiles/shorelines/bio_2_mh.tif')
-sh_lh <- raster('shapefiles/shorelines/bio_2_lh.tif')
-
-shore_list <- list(sh_hs, sh_ba, sh_yds, sh_eh, sh_mh, sh_lh)
-n_times <- length(shore_list)
-
-# specify extent you want to plot
-plot_ext <- c(0, 3200000, -1200000, 1600000)
-plot_ext <- extent(plot_ext)
-
-# specify time period for each iteration
-times <- c('17,000 - 14,700 YBP', 
-           '14,700 - 12,900 YBP', '12,900 - 11,700 YBP', '11,700 - 8,326 YBP', 
-           '8,326 - 4,200 YBP', '4,200 - 300 YBP')
-
 plot_list <- list()
 for(i in 1:n_times){
   df <- as.data.frame(hs_list[[i]], xy = TRUE)
@@ -750,8 +449,7 @@ for(i in 1:n_times){
   shore_cont <- rasterToContour(shore_pol)
   # simplify contour 
   shore_cont <- fortify(shore_cont)
-  shore_cont <- shore_cont[1:726,]
-  
+  shore_cont <- shore_cont[shore_cont$id == 'C_1',]
   
   plot_list[[i]] <- ggplot() +
     geom_tile(data = df[!is.na(df$hsm),], aes(x = x, y = y, fill = hsm)) +
@@ -775,13 +473,114 @@ for(i in 1:n_times){
           # legend.title = element_text(size = 8),
           # legend.text = element_text(size = 8),
           # legend.key.height = unit(1, 'cm'),
-          plot.title = element_text(size = 12, hjust = 0.5)) +
+          plot.title = element_text(size = 10, hjust = 0.5)) +
     coord_fixed(xlim = c(100000, 2900000),
                 ylim = c(-1000000, 1300000))
 }
+plot_grid(plotlist = plot_list)
 
 
-# PLOT PRESENT DAY
+#### LGM ZOOMED IN MAP
+# convert suitability raster to dataframe
+df <- as.data.frame(lgm, xy = TRUE)
+names(df) <- c('x','y','hsm')
+
+glacier_lgm <- glacier_list_pr[[21]]
+
+# read shoreline shapefiles and convert to contour line
+sh_lgm <- raster('shapefiles/shorelines/bio_2_lgm.tif')
+shore_pr <- projectRaster(from = sh_lgm, crs = CRS(proj_out))  # this takes a minute
+shore_crop <- crop(shore_pr, y = plot_ext)
+shore_df <- as.data.frame(shore_crop, xy = TRUE)
+shore_pol <- shore_df
+names(shore_pol) <- c('x','y','shore')
+shore_pol$shore <- ifelse(!is.na(shore_pol$shore), 1, 0)
+coordinates(shore_pol) <- ~x + y
+gridded(shore_pol) <- TRUE
+shore_pol <- raster(shore_pol)
+shore_cont <- rasterToContour(shore_pol)
+
+# simplify contour 
+shore_cont <- fortify(shore_cont)
+shore_cont <- shore_cont[shore_cont$id == 'C_1',]  # should be rows 1:726
+
+
+#### ZOOMED IN LGM MAP
+plot_lgm_zoom <- ggplot() +
+  geom_tile(data = df[!is.na(df$hsm),], aes(x = x, y = y, fill = hsm)) +
+  scale_fill_gradientn(colours = terrain.colors(10, rev = TRUE)) +
+  # geom_path(data = lake_shp, aes(x = long, y = lat, group = group),
+  #           size = 0.5, alpha = 0.4) +
+  geom_polygon(data = glacier_lgm, aes(x = long, y = lat, group = group),
+               size = 0.5, fill = 'slategray1', color = 'slategray') +
+  geom_path(data = cont_shp, aes(x = long, y = lat, group = group), 
+            size = 0.5, alpha = 0.4) +
+  geom_path(data = shore_cont, aes(x = long, y = lat, group = group),
+            size = 1, alpha = 0.8) +
+  # labs(fill = 'Habitat \nsuitability') +
+  theme(panel.background = element_blank(),
+        axis.ticks = element_blank(),
+        axis.text = element_blank(),
+        axis.title = element_blank(),
+        line = element_blank(),
+        legend.position = 'none') +
+        # plot.margin = unit(c(3,3,3,3), 'cm')) +
+        # legend.title = element_text(size = 8),
+        # legend.text = element_text(size = 8),
+        # legend.key.height = unit(1, 'cm'),
+        # plot.title = element_text(size = 12, hjust = 0.5)) +
+  coord_fixed(xlim = c(1900000, 2900000),
+              ylim = c(450000, 1300000))
+
+
+
+#### PLOT LIG (130K YBP)
+lig <- raster('shapefiles/HSM_rasters_dif_timepoints/lig_hsm.tif')
+df <- as.data.frame(lig, xy = TRUE)
+names(df) <- c('x','y','hsm')
+
+sh_lig <- raster('shapefiles/shorelines/bio_2_lig.tif')
+shore_pr <- projectRaster(from = sh_lig, crs = CRS(proj_out))  # this takes a minute
+shore_crop <- crop(shore_pr, y = plot_ext)
+shore_df <- as.data.frame(shore_crop, xy = TRUE)
+shore_pol <- shore_df
+names(shore_pol) <- c('x','y','shore')
+shore_pol$shore <- ifelse(!is.na(shore_pol$shore), 1, 0)
+coordinates(shore_pol) <- ~x + y
+gridded(shore_pol) <- TRUE
+shore_pol <- raster(shore_pol)
+shore_cont <- rasterToContour(shore_pol)
+
+# simplify contour 
+shore_cont <- fortify(shore_cont)
+shore_cont <- shore_cont[shore_cont$id == 'C_1',]  # should be rows 1:781
+
+plot_lig <- ggplot() +
+  geom_tile(data = df[!is.na(df$hsm),], aes(x = x, y = y, fill = hsm)) +
+  scale_fill_gradientn(colours = terrain.colors(10, rev = TRUE)) +
+  # geom_path(data = lake_shp, aes(x = long, y = lat, group = group),
+  #           size = 0.5, alpha = 0.4) +
+  geom_path(data = cont_shp, aes(x = long, y = lat, group = group), 
+            size = 0.5, alpha = 0.4) +
+  geom_path(data = shore_cont, aes(x = long, y = lat, group = group),
+            size = 1, alpha = 0.8) +
+  ggtitle('130,000 YBP') +
+  # labs(fill = 'Habitat \nsuitability') +
+  theme(panel.background = element_blank(),
+        axis.ticks = element_blank(),
+        axis.text = element_blank(),
+        axis.title = element_blank(),
+        line = element_blank(),
+        legend.position = 'none',
+        # legend.title = element_text(size = 8),
+        # legend.text = element_text(size = 8),
+        # legend.key.height = unit(1, 'cm'),
+        plot.title = element_text(size = 10, hjust = 0.5)) +
+  coord_fixed(xlim = c(100000, 2900000),
+              ylim = c(-1000000, 1300000))
+
+
+#### PLOT PRESENT DAY
 present <- raster('shapefiles/HSM_rasters_dif_timepoints/present_hsm.tif')
 df <- as.data.frame(present, xy = TRUE)
 names(df) <- c('x','y','hsm')
@@ -797,36 +596,44 @@ plot_present <- ggplot() +
   #           size = 0.5, alpha = 0.4) +
   ggtitle('Present') +
   # labs(fill = 'Habitat \nsuitability') +
-  annotation_scale(location = "br", text_cex = 1) +
-  # annotation_north_arrow(location = "br",
-  #                        pad_x = unit(0.4, "in"), pad_y = unit(0.4, "in")) +
+  annotation_scale(location = "br", text_cex = 0.5) +
+  annotation_north_arrow(location = "br", height = unit(0.75, 'cm'), width = unit(0.75, 'cm'),
+                         pad_x = unit(0.2, "in"), pad_y = unit(0.4, "in")) +
   theme(panel.background = element_blank(),
         axis.ticks = element_blank(),
         axis.text = element_blank(),
         axis.title = element_blank(),
         line = element_blank(),
         legend.position = 'none',
-        # legend.title = element_text(size = 8),
-        # legend.text = element_text(size = 8),
+        # legend.direction = 'horizontal',
+        # legend.title = element_text(size = 12),
+        # legend.text = element_text(size = 12),
         # legend.key.height = unit(1, 'cm'),
-        plot.title = element_text(size = 12, hjust = 0.5)) +
+        # legend.key.width = unit(1.4, 'cm'),
+        plot.title = element_text(size = 10, hjust = 0.5)) +
   coord_fixed(xlim = c(100000, 2900000),
               ylim = c(-1000000, 1300000))
 
-plot_list[[7]] <- plot_present
-plot_grid(plotlist = plot_list)
-ggsave('figs/hsm_shore_ice_maps_17k-present.png')
-
-
+plot_list[[8]] <- plot_present
+plot_list[[9]] <- plot_lig
+plot_list[[10]] <- plot_lgm_zoom
+plot_list <- plot_list[c(9, 1, 10, 2:7, 8)]
+plot_grid(plotlist = plot_list, nrow = 4, ncol= 3)
+saveRDS(plot_list, 'hsm_shore_ice_figs_list.RDS')
+ggsave('figs/hsm_shore_ice_maps.png', 
+       height = 10, width = 9.4, units = 'in')
 
 
 
 #### PLOT OF GENETIC SAMPLE LOCATIONS WITH INSET
-dat <- read.csv('reorg_lon_lat_df.csv', stringsAsFactors = FALSE)
-names(dat) <- c('id', 'pop', 'x', 'y')
+require(dplyr)
+require(ggplot2)
+require(sp)
+require(rgdal)
+require(ggspatial)
 
-pops <- read.csv('butternut_coord_df.csv', stringsAsFactors = FALSE)
-names(pops) <- c('id', 'x', 'y', 'color')
+dat <- read.csv('butternut_coord_df.csv', stringsAsFactors = FALSE)
+names(dat) <- c('id', 'pop', 'color', 'x', 'y')
 
 proj_from <- "+proj=longlat +ellps=WGS84 +datum=WGS84"
 proj_to <- "+proj=aea +lat_0=40 +lon_0=-96 +lat_1=20 +lat_2=60 +x_0=0 +y_0=0 +datum=NAD83 +units=m +no_defs"
@@ -838,37 +645,26 @@ spdf <- SpatialPointsDataFrame(coords = xy, data = dat,
 spdf <- spTransform(spdf, CRSobj = CRS(proj_to))
 dat <- as.data.frame(spdf)
 
-xy <- pops[,c('x','y')]
-spdf <- SpatialPointsDataFrame(coords = xy, data = pops,
-                               proj4string = CRS(proj_from))
-spdf <- spTransform(spdf, CRSobj = CRS(proj_to))
-pops <- as.data.frame(spdf)
-
-# add population colors to individuals dataframe
-colors <- pops$color
-pop_vec <- dat %>% select(pop) %>% distinct()
-pop_vec$color <- colors
-dat <- left_join(dat, pop_vec, by = 'pop')
-
+# create vector of colors for plotting
+cols <- dat %>% select(color) %>% distinct()
 
 # read in North America shapefiles
 na_shp <- readOGR("shapefiles/NA_States_Provinces_Albers.shp", "NA_States_Provinces_Albers")
-na_shp <- sp::spTransform(na_shp, proj_out)
+na_shp <- sp::spTransform(na_shp, proj_to)
 cont_shp <- subset(na_shp,
                    (NAME_0 %in% c("United States of America", "Mexico", "Canada")))
 lake_shp <- readOGR("shapefiles/Great_Lakes.shp", "Great_Lakes")
-lake_shp <- sp::spTransform(lake_shp, proj_out)
+lake_shp <- sp::spTransform(lake_shp, proj_to)
 
-
+# plot
 ggplot() + 
   geom_path(data = cont_shp, aes(x = long, y = lat, group = group), 
             size = 0.5) +
   geom_polygon(data = lake_shp, aes(x = long, y = lat, group = group),
                size = 0.5, color = 'black', fill = 'white') +
-  geom_point(data = dat, aes(x = x.1, y = y.1, fill = color),
+  geom_point(data = dat, aes(x = x.1, y = y.1, fill = factor(pop)),
              size = 6, pch = 21, alpha = 0.6) +
-  scale_fill_discrete(name = 'Population ID', 
-                      labels = pop_vec$pop) +
+  scale_fill_manual(name = 'Population ID', values = cols$color) +
   annotation_scale(location = "br", text_cex = 1.5) +
   annotation_north_arrow(location = "br",
                          pad_x = unit(0.8, "in"), pad_y = unit(0.4, "in")) +
