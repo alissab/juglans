@@ -19,4 +19,4 @@ Contains output of pull_butternut_data.R code (ie, butternut fossil pollen data)
 Contains lat/long for each population used in genetic analyses. Used to create map of population locations (Fig 1)
 
 ### Figs
-This folder contains exploratory figures, mainly showing locations of butternut pollen records across eastern North America over the last 21,000 years.
+This folder contains figures used in main text and supplement of manuscript.
