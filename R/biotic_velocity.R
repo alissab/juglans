@@ -793,7 +793,7 @@ require(sp)
 require(rgdal)
 require(ggspatial)
 
-dat <- read.csv('butternut_stat_df.csv', stringsAsFactors = FALSE)
+dat <- read.csv('data/butternut_stat_df.csv', stringsAsFactors = FALSE)
 dat <- dat %>% 
   select(X, Mean.Longitude, Mean.Latitude) %>% 
   rename(id = X, x = Mean.Longitude, y = Mean.Latitude)
@@ -817,15 +817,12 @@ spdf <- spTransform(spdf, CRSobj = CRS(proj_to))
 dat <- as.data.frame(spdf)
 
 # create color schemes by region
-ont <- c('125147', '126147', '151')
-queb <- c('171188', '170')
+ont <- c('125147', '126147', '151', '171188', '170')
 nb <- c('568', '9101113b', '9101113a', '1014', '7917', '31')
 dat$region <- ifelse(dat$dat.id %in% ont, 'Ontario', 
-                     ifelse(dat$dat.id %in% queb, 'Quebec', 
-                            ifelse(dat$dat.id %in% nb, 'New Brunswick', 'United States')))
+                            ifelse(dat$dat.id %in% nb, 'New Brunswick', 'United States'))
 dat$reg_color <- ifelse(dat$region == 'Ontario', 'red4', 
-                        ifelse(dat$region == 'Quebec', 'lightsalmon1', 
-                               ifelse(dat$region == 'New Brunswick', 'firebrick1', 'dodgerblue2')))
+                               ifelse(dat$region == 'New Brunswick', 'firebrick1', 'dodgerblue2'))
 # create vector of colors for plotting
 cols <- dat %>% dplyr::select(reg_color) %>% distinct()
 
@@ -856,4 +853,4 @@ ggplot() +
   # plot.title = element_text(size = 12, hjust = 0.5)) +
   coord_fixed(xlim = c(300000, 2500000),
               ylim = c(-700000, 1300000))
-ggsave('figs/genetic_pops_map_color_by_region_V2.png')
+ggsave('figs/genetic_pops_map_color_by_region_V3.png')
